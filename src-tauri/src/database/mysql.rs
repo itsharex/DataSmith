@@ -249,10 +249,21 @@ impl DatabaseOperations for MySqlDatabase {
 
         let mut databases = Vec::new();
         for row in rows {
+            let name_bytes: Vec<u8> = row
+                .try_get("SCHEMA_NAME")
+                .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+
+            let name = String::from_utf8_lossy(&name_bytes).into_owned();
+            let charset: Option<String> =
+                row.try_get("DEFAULT_CHARACTER_SET_NAME").ok();
+
+            let collation: Option<String> =
+                row.try_get("DEFAULT_COLLATION_NAME").ok();
+
             databases.push(DatabaseInfo {
-                name: row.try_get(0).unwrap_or_default(),
-                charset: row.try_get(1).ok(),
-                collation: row.try_get(2).ok(),
+                name,
+                charset,
+                collation,
             });
         }
 
@@ -284,14 +295,23 @@ impl DatabaseOperations for MySqlDatabase {
 
         let mut tables = Vec::new();
         for row in rows {
+            let name_bytes: Vec<u8> = row.try_get("TABLE_NAME")
+                .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+            let name = String::from_utf8_lossy(&name_bytes).into_owned();
+
+            let table_type_bytes: Vec<u8> = row.try_get("TABLE_TYPE")
+                .unwrap_or_else(|_| Vec::new());
+            let table_type = String::from_utf8_lossy(&table_type_bytes).into_owned();
+
             tables.push(TableInfo {
-                name: row.try_get(0).unwrap_or_default(),
+                name,
                 schema: Some(db_name.to_string()),
-                table_type: row.try_get(1).unwrap_or_default(),
-                engine: row.try_get(2).ok(),
-                rows: row.try_get(3).ok(),
-                size_mb: row.try_get(4).ok(),
-                comment: row.try_get(5).ok(),
+                table_type,
+                engine: row.try_get("ENGINE").ok(),
+                rows: row.try_get("TABLE_ROWS").ok(),
+                size_mb: row.try_get("SIZE_MB").ok(),
+                comment: row.try_get::<Vec<u8>, _>("TABLE_COMMENT").ok()
+                    .map(|b| String::from_utf8_lossy(&b).into_owned()),
             });
         }
 
@@ -324,21 +344,39 @@ impl DatabaseOperations for MySqlDatabase {
 
         let mut columns = Vec::new();
         for row in rows {
-            let is_nullable: String = row.try_get(2).unwrap_or_default();
-            let column_key: String = row.try_get(4).unwrap_or_default();
-            let extra: String = row.try_get(5).unwrap_or_default();
+            let name_bytes: Vec<u8> = row.try_get("COLUMN_NAME")
+                .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+            let name = String::from_utf8_lossy(&name_bytes).into_owned();
+
+            let data_type_bytes: Vec<u8> = row.try_get("DATA_TYPE")
+                .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+            let data_type = String::from_utf8_lossy(&data_type_bytes).into_owned();
+
+            let is_nullable_bytes: Vec<u8> = row.try_get("IS_NULLABLE")
+                .unwrap_or_else(|_| Vec::new());
+            let is_nullable = String::from_utf8_lossy(&is_nullable_bytes).into_owned();
+
+            let column_key_bytes: Vec<u8> = row.try_get("COLUMN_KEY")
+                .unwrap_or_else(|_| Vec::new());
+            let column_key = String::from_utf8_lossy(&column_key_bytes).into_owned();
+
+            let extra_bytes: Vec<u8> = row.try_get("EXTRA")
+                .unwrap_or_else(|_| Vec::new());
+            let extra = String::from_utf8_lossy(&extra_bytes).into_owned();
 
             columns.push(ColumnInfo {
-                name: row.try_get(0).unwrap_or_default(),
-                data_type: row.try_get(1).unwrap_or_default(),
+                name,
+                data_type,
                 nullable: is_nullable.to_uppercase() == "YES",
-                default_value: row.try_get(3).ok(),
+                default_value: row.try_get::<Vec<u8>, _>("COLUMN_DEFAULT").ok()
+                    .map(|b| String::from_utf8_lossy(&b).into_owned()),
                 is_primary_key: column_key == "PRI",
                 is_auto_increment: extra.contains("auto_increment"),
-                comment: row.try_get(6).ok(),
-                character_maximum_length: row.try_get(7).ok(),
-                numeric_precision: row.try_get(8).ok(),
-                numeric_scale: row.try_get(9).ok(),
+                comment: row.try_get::<Vec<u8>, _>("COLUMN_COMMENT").ok()
+                    .map(|b| String::from_utf8_lossy(&b).into_owned()),
+                character_maximum_length: row.try_get("CHARACTER_MAXIMUM_LENGTH").ok(),
+                numeric_precision: row.try_get("NUMERIC_PRECISION").ok(),
+                numeric_scale: row.try_get("NUMERIC_SCALE").ok(),
             });
         }
 
@@ -369,12 +407,21 @@ impl DatabaseOperations for MySqlDatabase {
 
         // 按索引名分组
         let mut index_map: HashMap<String, IndexInfo> = HashMap::new();
-        
+
         for row in rows {
-            let index_name: String = row.try_get(0).unwrap_or_default();
-            let column_name: String = row.try_get(1).unwrap_or_default();
-            let non_unique: i32 = row.try_get(2).unwrap_or(1);
-            let index_type: String = row.try_get(3).unwrap_or_default();
+            let index_name_bytes: Vec<u8> = row.try_get("INDEX_NAME")
+                .unwrap_or_else(|_| Vec::new());
+            let index_name = String::from_utf8_lossy(&index_name_bytes).into_owned();
+
+            let column_name_bytes: Vec<u8> = row.try_get("COLUMN_NAME")
+                .unwrap_or_else(|_| Vec::new());
+            let column_name = String::from_utf8_lossy(&column_name_bytes).into_owned();
+
+            let non_unique: i32 = row.try_get("NON_UNIQUE").unwrap_or(1);
+
+            let index_type_bytes: Vec<u8> = row.try_get("INDEX_TYPE")
+                .unwrap_or_else(|_| Vec::new());
+            let index_type = String::from_utf8_lossy(&index_type_bytes).into_owned();
 
             index_map
                 .entry(index_name.clone())
@@ -497,4 +544,3 @@ impl MySqlDatabase {
         })
     }
 }
-
