@@ -38,7 +38,10 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/icon.png"
+      "icons/icon.ico",
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.svg"
     ],
     "windows": {
       "certificateThumbprint": null,
