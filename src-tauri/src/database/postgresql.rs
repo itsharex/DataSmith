@@ -256,7 +256,12 @@ impl PostgreSqlDatabase {
     ) -> DbResult<Vec<ColumnInfo>> {
         let schema_name = schema.unwrap_or("public");
 
-        // 使用 pg_attribute 和 pg_class 获取列信息，支持大小写敏感的表名
+        // 使用 pg_attribute 和 pg_class 获取列信息
+        // PostgreSQL 表名大小写敏感：未加引号的标识符会被转为小写存储
+        // 所以需要同时尝试原始名称和小写名称
+        let table_lower = table.to_lowercase();
+        
+        // 先尝试精确匹配，再尝试小写匹配
         let rows = sqlx::query(
             "SELECT
                 a.attname as column_name,
@@ -282,28 +287,30 @@ impl PostgreSqlDatabase {
              LEFT JOIN pg_catalog.pg_type t ON a.atttypid = t.oid
              LEFT JOIN pg_catalog.pg_attrdef d ON (a.attrelid, a.attnum) = (d.adrelid, d.adnum)
              WHERE n.nspname = $1
-               AND c.relname = $2
+               AND (c.relname = $2 OR c.relname = $3)
                AND a.attnum > 0
                AND NOT a.attisdropped
              ORDER BY a.attnum"
         )
         .bind(schema_name)
         .bind(table)
+        .bind(&table_lower)
         .fetch_all(pool)
         .await
         .map_err(|e| DbError::QueryFailed(e.to_string()))?;
 
-        // 获取主键信息 - 使用带引号的标识符
+        // 获取主键信息 - 同时尝试原始名称和小写名称
         let pk_rows = sqlx::query(
             "SELECT a.attname
              FROM pg_index i
              JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
              JOIN pg_class c ON c.oid = i.indrelid
              JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname = $1 AND c.relname = $2 AND i.indisprimary"
+             WHERE n.nspname = $1 AND (c.relname = $2 OR c.relname = $3) AND i.indisprimary"
         )
         .bind(schema_name)
         .bind(table)
+        .bind(&table_lower)
         .fetch_all(pool)
         .await
         .map_err(|e| DbError::QueryFailed(e.to_string()))?;

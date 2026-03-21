@@ -54,9 +54,11 @@
       <template #bodyCell="{ column, text, record, index }">
         <div
           class="editable-cell"
-          @dblclick="startEdit(record, column.dataIndex, index)"
+          @dblclick="startEdit($event, record, column.dataIndex, index)"
         >
-          <div v-if="editingKey === `${record.__rowIndex}-${column.dataIndex}`" class="editing-wrapper">
+          <div v-if="editingKey === `${record.__rowIndex}-${column.dataIndex}`"
+               class="editing-wrapper"
+               :style="{ top: editPosition.top + 'px', left: editPosition.left + 'px' }">
             <a-textarea
               v-model:value="editingValue"
               @keyup.esc="cancelEdit"
@@ -65,17 +67,17 @@
               class="edit-input"
             />
             <div class="edit-buttons">
-              <a-button 
-                type="primary" 
-                size="small" 
+              <a-button
+                type="primary"
+                size="small"
                 :loading="saving"
                 @click.stop="saveEdit(record, column.dataIndex)"
               >
                 <template #icon><CheckOutlined /></template>
                 保存
               </a-button>
-              <a-button 
-                size="small" 
+              <a-button
+                size="small"
                 @click.stop="cancelEdit"
                 :disabled="saving"
               >
@@ -84,13 +86,13 @@
               </a-button>
             </div>
           </div>
-          <div 
-            v-else 
+          <div
+            v-else
             class="cell-content"
-            :title="text !== null && text !== undefined && String(text).length > 30 ? String(text) : undefined"
+            :title="getCellTitle(text)"
           >
             <span :class="{ null: text === null }">
-              {{ text === null ? 'NULL' : text }}
+              {{ formatCellValue(text) }}
             </span>
           </div>
         </div>
@@ -192,6 +194,7 @@ const editingKey = ref('')
 const editingValue = ref('')
 const editInput = ref()
 const saving = ref(false)
+const editPosition = ref({ top: 0, left: 0 })
 
 // 分页
 const pagination = ref({
@@ -359,12 +362,78 @@ function handleTableChange(pag: any, _filters: any, _sorter: any) {
   pagination.value = pag
 }
 
+// 将值转换为可编辑的字符串
+function valueToEditableString(value: any): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  if (typeof value === 'object') {
+    // 对于对象类型（如 JSON），使用 JSON.stringify 格式化
+    return JSON.stringify(value, null, 2)
+  }
+  return String(value)
+}
+
+// 格式化单元格显示值
+function formatCellValue(value: any): string {
+  if (value === null) {
+    return 'NULL'
+  }
+  if (value === undefined) {
+    return 'UNDEFINED'
+  }
+  if (typeof value === 'object') {
+    // 对于对象类型，显示 JSON 字符串
+    const jsonStr = JSON.stringify(value)
+    // 如果太长则截断
+    if (jsonStr.length > 50) {
+      return jsonStr.substring(0, 50) + '...'
+    }
+    return jsonStr
+  }
+  return String(value)
+}
+
+// 获取单元格的 title 属性
+function getCellTitle(value: any): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+  const str = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+  // 只有内容较长时才显示 title
+  return str.length > 30 ? str : undefined
+}
+
 // 开始编辑
-function startEdit(record: any, field: string | number | readonly (string | number)[] | undefined, _index: number, _event?: MouseEvent) {
+function startEdit(event: MouseEvent, record: any, field: string | number | readonly (string | number)[] | undefined, _index: number) {
   if (!field) return
   const fieldStr = Array.isArray(field) ? String(field[0]) : String(field)
   editingKey.value = `${record.__rowIndex}-${fieldStr}`
-  editingValue.value = record[fieldStr] === null ? '' : String(record[fieldStr])
+  editingValue.value = valueToEditableString(record[fieldStr])
+  
+  // 计算编辑框位置 - 在单元格下方显示
+  const target = event.target as HTMLElement
+  const cellRect = target.closest('.editable-cell')?.getBoundingClientRect()
+  if (cellRect) {
+    // 确保编辑框在视口内
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    let left = cellRect.left
+    let top = cellRect.bottom + 4
+    
+    // 如果右侧空间不足，向左偏移
+    if (left + 450 > viewportWidth) {
+      left = viewportWidth - 450
+    }
+    
+    // 如果下方空间不足，显示在单元格上方
+    if (top + 200 > viewportHeight) {
+      top = cellRect.top - 200
+    }
+    
+    editPosition.value = { top: Math.max(10, top), left: Math.max(10, left) }
+  }
   
   nextTick(() => {
     if (editInput.value) {
