@@ -54,7 +54,53 @@
     </div>
 
     <!-- 命令输入编辑器 -->
-    <div ref="editorContainer" class="editor-wrapper"></div>
+    <div ref="editorContainer" class="editor-wrapper" @contextmenu="handleEditorContextMenu"></div>
+
+    <!-- 编辑器右键菜单 -->
+    <div
+      v-if="editorMenuVisible"
+      class="editor-context-menu-overlay"
+    >
+      <div
+        class="editor-context-menu"
+        :style="{ left: editorMenuX + 'px', top: editorMenuY + 'px' }"
+        @click.stop
+      >
+        <a-menu @click="handleEditorMenuClick">
+          <a-menu-item key="execute">
+            <CaretRightOutlined />
+            执行命令
+            <span class="menu-shortcut">Ctrl+Enter</span>
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="cut" :disabled="!hasSelection">
+            <ScissorOutlined />
+            剪切
+            <span class="menu-shortcut">Ctrl+X</span>
+          </a-menu-item>
+          <a-menu-item key="copy" :disabled="!hasSelection">
+            <CopyOutlined />
+            复制
+            <span class="menu-shortcut">Ctrl+C</span>
+          </a-menu-item>
+          <a-menu-item key="paste">
+            <SnippetsOutlined />
+            粘贴
+            <span class="menu-shortcut">Ctrl+V</span>
+          </a-menu-item>
+          <a-menu-item key="select-all">
+            <SelectOutlined />
+            全选
+            <span class="menu-shortcut">Ctrl+A</span>
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="clear">
+            <ClearOutlined />
+            清空编辑器
+          </a-menu-item>
+        </a-menu>
+      </div>
+    </div>
 
     <!-- 结果标签页 -->
     <div class="result-tabs">
@@ -180,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, onUnmounted, watch, ref, computed } from 'vue'
+import { h, nextTick, onMounted, onUnmounted, watch, ref, computed } from 'vue'
 import * as monaco from 'monaco-editor'
 import { registerRedisCompletionProvider } from '@/services/redisAutocomplete'
 import {
@@ -189,6 +235,10 @@ import {
   HistoryOutlined,
   InfoCircleOutlined,
   DatabaseOutlined,
+  ScissorOutlined,
+  CopyOutlined,
+  SnippetsOutlined,
+  SelectOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { invoke } from '@tauri-apps/api/core'
@@ -212,6 +262,12 @@ const selectedDatabase = ref('db0')
 const loadingInfo = ref(false)
 const serverInfo = ref<Record<string, any>>({})
 let keepAliveTimer: number | null = null
+
+// 编辑器右键菜单
+const editorMenuVisible = ref(false)
+const editorMenuX = ref(0)
+const editorMenuY = ref(0)
+const hasSelection = ref(false)
 
 interface Message {
   type: 'success' | 'error' | 'info'
@@ -545,6 +601,89 @@ function stopKeepAlive() {
   }
 }
 
+// 编辑器右键菜单处理
+function handleEditorContextMenu(e: MouseEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+
+  if (!editor) return
+
+  const selection = editor.getSelection()
+  hasSelection.value = !!(selection && !selection.isEmpty())
+
+  editorMenuX.value = e.clientX
+  editorMenuY.value = e.clientY
+  editorMenuVisible.value = true
+
+  nextTick(() => {
+    const menuElement = document.querySelector('.editor-context-menu') as HTMLElement
+    if (!menuElement) return
+
+    const menuRect = menuElement.getBoundingClientRect()
+    const windowWidth = window.innerWidth
+    const windowHeight = window.innerHeight
+    const padding = 10
+
+    let x = e.clientX
+    let y = e.clientY
+
+    if (x + menuRect.width > windowWidth - padding) {
+      x = windowWidth - menuRect.width - padding
+    }
+    if (y + menuRect.height > windowHeight - padding) {
+      y = windowHeight - menuRect.height - padding
+    }
+    x = Math.max(padding, x)
+    y = Math.max(padding, y)
+
+    editorMenuX.value = x
+    editorMenuY.value = y
+  })
+}
+
+// 关闭编辑器右键菜单
+function closeEditorMenu() {
+  editorMenuVisible.value = false
+}
+
+// 处理编辑器右键菜单点击
+function handleEditorMenuClick({ key }: { key: string | number }) {
+  closeEditorMenu()
+
+  const keyStr = String(key)
+  switch (keyStr) {
+    case 'execute':
+      executeCommand()
+      break
+    case 'cut':
+      editor?.trigger('contextMenu', 'editor.action.clipboardCutAction', null)
+      break
+    case 'copy':
+      editor?.trigger('contextMenu', 'editor.action.clipboardCopyAction', null)
+      break
+    case 'paste':
+      editor?.trigger('contextMenu', 'editor.action.clipboardPasteAction', null)
+      break
+    case 'select-all':
+      editor?.trigger('contextMenu', 'editor.action.selectAll', null)
+      break
+    case 'clear':
+      clearEditor()
+      break
+  }
+}
+
+// 注册全局事件关闭编辑器右键菜单
+onMounted(() => {
+  document.addEventListener('click', closeEditorMenu)
+  document.addEventListener('contextmenu', closeEditorMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeEditorMenu)
+  document.removeEventListener('contextmenu', closeEditorMenu)
+})
+
 // 暴露方法供父组件调用
 defineExpose({
   switchDatabase,
@@ -666,6 +805,40 @@ defineExpose({
 
 .dark-mode .server-info-detail {
   background: #1a1a1a;
+}
+
+/* 编辑器右键菜单样式 */
+.editor-context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: transparent;
+  pointer-events: none;
+}
+
+.editor-context-menu {
+  position: absolute;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
+  z-index: 10000;
+  min-width: 220px;
+  pointer-events: auto;
+}
+
+.dark-mode .editor-context-menu {
+  background: #1f1f1f;
+  border: 1px solid #303030;
+}
+
+.menu-shortcut {
+  float: right;
+  color: #8c8c8c;
+  font-size: 12px;
+  margin-left: 40px;
 }
 </style>
 

@@ -68,7 +68,89 @@
       </div>
     </div>
 
-    <div ref="editorContainer" class="editor-wrapper"></div>
+    <div ref="editorContainer" class="editor-wrapper" @contextmenu="handleEditorContextMenu"></div>
+
+    <!-- 编辑器右键菜单 -->
+    <div
+      v-if="editorMenuVisible"
+      class="editor-context-menu-overlay"
+    >
+      <div
+        class="editor-context-menu"
+        :style="{ left: editorMenuX + 'px', top: editorMenuY + 'px' }"
+        @click.stop
+      >
+        <a-menu @click="handleEditorMenuClick">
+          <!-- 执行类 -->
+          <a-menu-item key="execute-selection" v-if="hasSelection">
+            <CaretRightOutlined />
+            执行选中语句
+            <span class="menu-shortcut">Ctrl+Enter</span>
+          </a-menu-item>
+          <a-menu-item key="execute-all">
+            <CaretRightOutlined />
+            执行全部
+            <span class="menu-shortcut">F5</span>
+          </a-menu-item>
+          <a-menu-divider />
+          <!-- 编辑类 -->
+          <a-menu-item key="cut" :disabled="!hasSelection">
+            <ScissorOutlined />
+            剪切
+            <span class="menu-shortcut">Ctrl+X</span>
+          </a-menu-item>
+          <a-menu-item key="copy" :disabled="!hasSelection">
+            <CopyOutlined />
+            复制
+            <span class="menu-shortcut">Ctrl+C</span>
+          </a-menu-item>
+          <a-menu-item key="paste">
+            <SnippetsOutlined />
+            粘贴
+            <span class="menu-shortcut">Ctrl+V</span>
+          </a-menu-item>
+          <a-menu-item key="select-all">
+            <SelectOutlined />
+            全选
+            <span class="menu-shortcut">Ctrl+A</span>
+          </a-menu-item>
+          <a-menu-divider />
+          <!-- 转换类 -->
+          <a-menu-item key="toggle-comment">
+            <MessageOutlined />
+            注释/取消注释
+            <span class="menu-shortcut">Ctrl+/</span>
+          </a-menu-item>
+          <a-menu-item key="uppercase" :disabled="!hasSelection">
+            <FontSizeOutlined />
+            转为大写
+          </a-menu-item>
+          <a-menu-item key="lowercase" :disabled="!hasSelection">
+            <FontSizeOutlined />
+            转为小写
+          </a-menu-item>
+          <a-menu-divider />
+          <!-- 工具类 -->
+          <a-menu-item key="format">
+            <FormatPainterOutlined />
+            格式化 SQL
+          </a-menu-item>
+          <a-menu-item key="snippets">
+            <CodeOutlined />
+            代码片段
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="save">
+            <SaveOutlined />
+            保存查询
+          </a-menu-item>
+          <a-menu-item key="clear">
+            <ClearOutlined />
+            清空编辑器
+          </a-menu-item>
+        </a-menu>
+      </div>
+    </div>
 
     <div class="result-tabs">
       <a-tabs v-model:activeKey="resultTabKey">
@@ -197,6 +279,12 @@ import {
   CodeOutlined,
   DownOutlined,
   ReloadOutlined,
+  ScissorOutlined,
+  CopyOutlined,
+  SnippetsOutlined,
+  SelectOutlined,
+  MessageOutlined,
+  FontSizeOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { invoke } from '@tauri-apps/api/core'
@@ -220,6 +308,12 @@ const resultTabKey = ref('result')
 const showHistory = ref(false)
 const showSaveDialog = ref(false)
 const showSnippets = ref(false)
+
+// 编辑器右键菜单
+const editorMenuVisible = ref(false)
+const editorMenuX = ref(0)
+const editorMenuY = ref(0)
+const hasSelection = ref(false)
 const cursorLine = ref(1)
 const cursorColumn = ref(1)
 const refreshingAutocomplete = ref(false)
@@ -650,6 +744,232 @@ async function setSelectedDatabase(database: string) {
   console.log('=== 数据库设置完成 ===')
 }
 
+// 编辑器右键菜单处理
+function handleEditorContextMenu(e: MouseEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+
+  if (!editor) return
+
+  const selection = editor.getSelection()
+  hasSelection.value = !!(selection && !selection.isEmpty())
+
+  editorMenuX.value = e.clientX
+  editorMenuY.value = e.clientY
+  editorMenuVisible.value = true
+
+  nextTick(() => {
+    const menuElement = document.querySelector('.editor-context-menu') as HTMLElement
+    if (!menuElement) return
+
+    const menuRect = menuElement.getBoundingClientRect()
+    const windowWidth = window.innerWidth
+    const windowHeight = window.innerHeight
+    const padding = 10
+
+    let x = e.clientX
+    let y = e.clientY
+
+    if (x + menuRect.width > windowWidth - padding) {
+      x = windowWidth - menuRect.width - padding
+    }
+    if (y + menuRect.height > windowHeight - padding) {
+      y = windowHeight - menuRect.height - padding
+    }
+    x = Math.max(padding, x)
+    y = Math.max(padding, y)
+
+    editorMenuX.value = x
+    editorMenuY.value = y
+  })
+}
+
+// 关闭编辑器右键菜单
+function closeEditorMenu() {
+  editorMenuVisible.value = false
+}
+
+// 执行选中语句
+async function executeSelection() {
+  if (!editor) return
+  const selection = editor.getSelection()
+  if (!selection || selection.isEmpty()) return
+
+  const sql = editor.getModel()?.getValueInRange(selection)?.trim()
+  if (!sql) return
+
+  if (!hasActiveConnection.value) {
+    message.warning('请先选择一个数据库连接')
+    return
+  }
+
+  executing.value = true
+  queryResults.value = []
+  currentResultIndex.value = 0
+  resultTabKey.value = 'result'
+
+  addMessage('info', `执行选中语句...`)
+
+  try {
+    const result = await invoke<QueryResult>('execute_query', {
+      connectionId: connectionStore.activeConnectionId,
+      sql,
+      database: selectedDatabase.value || null,
+    })
+
+    queryResults.value = [result]
+    addMessage(
+      'success',
+      `查询成功！影响 ${result.affected_rows} 行，耗时 ${result.execution_time_ms} ms`
+    )
+    saveToHistory(sql)
+  } catch (error: any) {
+    queryResults.value = []
+    currentResultIndex.value = 0
+    addMessage('error', `查询失败: ${error}`)
+    message.error(`查询失败: ${error}`)
+  } finally {
+    executing.value = false
+  }
+}
+
+// 注释/取消注释
+function toggleComment() {
+  if (!editor) return
+
+  const selection = editor.getSelection()
+  const model = editor.getModel()
+  if (!selection || !model) return
+
+  const startLine = selection.startLineNumber
+  const endLine = selection.endLineNumber
+
+  // 检查选中区域是否所有行都已注释
+  let allCommented = true
+  for (let line = startLine; line <= endLine; line++) {
+    const lineContent = model.getLineContent(line)
+    if (!lineContent.trimStart().startsWith('--')) {
+      allCommented = false
+      break
+    }
+  }
+
+  const edits: monaco.editor.IIdentifiedSingleEditOperation[] = []
+
+  for (let line = startLine; line <= endLine; line++) {
+    const lineContent = model.getLineContent(line)
+    if (allCommented) {
+      // 取消注释：移除行首的 --
+      const trimmed = lineContent.trimStart()
+      if (trimmed.startsWith('--')) {
+        const commentIndex = lineContent.indexOf('--')
+        edits.push({
+          range: new monaco.Range(line, commentIndex + 1, line, commentIndex + 3),
+          text: '',
+        })
+      }
+    } else {
+      // 添加注释：在行首添加 --
+      edits.push({
+        range: new monaco.Range(line, 1, line, 1),
+        text: '-- ',
+      })
+    }
+  }
+
+  editor.executeEdits('toggle-comment', edits)
+  editor.focus()
+}
+
+// 转大写
+function convertToUppercase() {
+  if (!editor) return
+  const selection = editor.getSelection()
+  const model = editor.getModel()
+  if (!selection || !model || selection.isEmpty()) return
+
+  const text = model.getValueInRange(selection)
+  editor.executeEdits('uppercase', [{
+    range: selection,
+    text: text.toUpperCase(),
+  }])
+  editor.focus()
+}
+
+// 转小写
+function convertToLowercase() {
+  if (!editor) return
+  const selection = editor.getSelection()
+  const model = editor.getModel()
+  if (!selection || !model || selection.isEmpty()) return
+
+  const text = model.getValueInRange(selection)
+  editor.executeEdits('lowercase', [{
+    range: selection,
+    text: text.toLowerCase(),
+  }])
+  editor.focus()
+}
+
+// 处理编辑器右键菜单点击
+function handleEditorMenuClick({ key }: { key: string | number }) {
+  closeEditorMenu()
+
+  const keyStr = String(key)
+  switch (keyStr) {
+    case 'execute-selection':
+      executeSelection()
+      break
+    case 'execute-all':
+      executeQuery()
+      break
+    case 'cut':
+      editor?.trigger('contextMenu', 'editor.action.clipboardCutAction', null)
+      break
+    case 'copy':
+      editor?.trigger('contextMenu', 'editor.action.clipboardCopyAction', null)
+      break
+    case 'paste':
+      editor?.trigger('contextMenu', 'editor.action.clipboardPasteAction', null)
+      break
+    case 'select-all':
+      editor?.trigger('contextMenu', 'editor.action.selectAll', null)
+      break
+    case 'toggle-comment':
+      toggleComment()
+      break
+    case 'uppercase':
+      convertToUppercase()
+      break
+    case 'lowercase':
+      convertToLowercase()
+      break
+    case 'format':
+      formatSql()
+      break
+    case 'snippets':
+      showSnippets.value = true
+      break
+    case 'save':
+      saveQuery()
+      break
+    case 'clear':
+      clearEditor()
+      break
+  }
+}
+
+// 注册全局事件关闭编辑器右键菜单
+onMounted(() => {
+  document.addEventListener('click', closeEditorMenu)
+  document.addEventListener('contextmenu', closeEditorMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeEditorMenu)
+  document.removeEventListener('contextmenu', closeEditorMenu)
+})
+
 // 暴露方法供父组件调用
 defineExpose({
   setSelectedDatabase,
@@ -730,6 +1050,40 @@ defineExpose({
 
 .message-text {
   font-family: monospace;
+}
+
+/* 编辑器右键菜单样式 */
+.editor-context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: transparent;
+  pointer-events: none;
+}
+
+.editor-context-menu {
+  position: absolute;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
+  z-index: 10000;
+  min-width: 220px;
+  pointer-events: auto;
+}
+
+.dark-mode .editor-context-menu {
+  background: #1f1f1f;
+  border: 1px solid #303030;
+}
+
+.menu-shortcut {
+  float: right;
+  color: #8c8c8c;
+  font-size: 12px;
+  margin-left: 40px;
 }
 </style>
 
