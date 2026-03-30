@@ -31,9 +31,6 @@ Cargo.lock
 # Tauri
 /src-tauri/WixTools
 
-# Auto-generated files
-src/auto-imports.d.ts
-src/components.d.ts
 
 # Environment files
 .env
