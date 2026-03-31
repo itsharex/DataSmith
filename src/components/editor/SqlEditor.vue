@@ -61,9 +61,6 @@
         <a-tag v-if="connectionInfo" color="blue">
           {{ connectionInfo.name }}
         </a-tag>
-        <a-tag v-if="selectedDatabase" color="green">
-          {{ selectedDatabase }}
-        </a-tag>
       </div>
     </div>
 

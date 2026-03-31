@@ -46,9 +46,6 @@
         <a-tag v-if="connectionInfo" color="red">
           <DatabaseOutlined /> {{ connectionInfo.name }}
         </a-tag>
-        <a-tag v-if="selectedDatabase" color="orange">
-          {{ selectedDatabase }}
-        </a-tag>
       </div>
     </div>
 
