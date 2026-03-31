@@ -64,7 +64,6 @@
         <a-tag v-if="selectedDatabase" color="green">
           {{ selectedDatabase }}
         </a-tag>
-        <span class="cursor-position">行 {{ cursorLine }}, 列 {{ cursorColumn }}</span>
       </div>
     </div>
 
@@ -314,8 +313,6 @@ const editorMenuVisible = ref(false)
 const editorMenuX = ref(0)
 const editorMenuY = ref(0)
 const hasSelection = ref(false)
-const cursorLine = ref(1)
-const cursorColumn = ref(1)
 const refreshingAutocomplete = ref(false)
 
 // 数据库选择相关
@@ -447,12 +444,6 @@ onMounted(() => {
       completionProvider.setCurrentDatabase(selectedDatabase.value)
     }
   }
-
-  // 监听光标位置变化
-  editor.onDidChangeCursorPosition((e) => {
-    cursorLine.value = e.position.lineNumber
-    cursorColumn.value = e.position.column
-  })
 
   // 添加快捷键
   editor.addCommand(monaco.KeyCode.F5, () => {
@@ -1002,11 +993,6 @@ defineExpose({
   display: flex;
   gap: 12px;
   align-items: center;
-}
-
-.cursor-position {
-  font-size: 12px;
-  color: #8c8c8c;
 }
 
 .editor-wrapper {

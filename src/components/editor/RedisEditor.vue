@@ -49,7 +49,6 @@
         <a-tag v-if="selectedDatabase" color="orange">
           {{ selectedDatabase }}
         </a-tag>
-        <span class="cursor-position">行 {{ cursorLine }}, 列 {{ cursorColumn }}</span>
       </div>
     </div>
 
@@ -256,8 +255,6 @@ const commandResults = ref<any[]>([])
 const resultTabKey = ref('result')
 const showHistory = ref(false)
 const showInfo = ref(false)
-const cursorLine = ref(1)
-const cursorColumn = ref(1)
 const selectedDatabase = ref('db0')
 const loadingInfo = ref(false)
 const serverInfo = ref<Record<string, any>>({})
@@ -357,12 +354,6 @@ onMounted(() => {
 
   // 注册 Redis 自动补全提供程序
   registerRedisCompletionProvider()
-
-  // 监听光标位置变化
-  editor.onDidChangeCursorPosition((e) => {
-    cursorLine.value = e.position.lineNumber
-    cursorColumn.value = e.position.column
-  })
 
   // 添加快捷键 Ctrl+Enter 执行命令
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -715,11 +706,6 @@ defineExpose({
   display: flex;
   gap: 12px;
   align-items: center;
-}
-
-.cursor-position {
-  font-size: 12px;
-  color: #8c8c8c;
 }
 
 .editor-wrapper {
