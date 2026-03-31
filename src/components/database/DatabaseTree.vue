@@ -303,6 +303,7 @@ interface TreeNode {
   children?: TreeNode[]
   isLeaf?: boolean
   metadata?: any
+  dbType?: string
 }
 
 const props = defineProps<{
@@ -429,6 +430,7 @@ async function loadDatabases() {
           type: 'tables',
           isLeaf: false,
           metadata: { database: 'main' },
+          dbType: props.dbType,
         },
         {
           key: 'views',
@@ -436,6 +438,7 @@ async function loadDatabases() {
           type: 'views',
           isLeaf: false,
           metadata: { database: 'main' },
+          dbType: props.dbType,
         },
       ]
     } else {
@@ -450,6 +453,7 @@ async function loadDatabases() {
         type: 'database',
         isLeaf: false,
         metadata: db,
+        dbType: props.dbType,
       }))
     }
   } catch (error: any) {
@@ -1714,7 +1718,7 @@ defineExpose({
 .database-tree {
   height: 100%;
   overflow: auto;
-  padding: 8px 0;
+  padding: 4px 0;
   user-select: none;
 }
 

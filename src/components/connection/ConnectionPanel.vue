@@ -47,7 +47,7 @@
               <span v-else class="expand-icon-placeholder"></span>
             </div>
             <div class="connection-icon">
-              <DatabaseOutlined />
+              <i :class="getDbIconClass(conn.db_type)"></i>
             </div>
             <div class="connection-info">
               <div class="connection-name">{{ conn.name }}</div>
@@ -194,6 +194,18 @@ const canCreateDatabase = computed(() => {
   const dbType = selectedConnection.value.db_type?.toLowerCase()
   return dbType !== 'sqlite'
 })
+
+// 获取数据库图标类名
+function getDbIconClass(dbType: string): string {
+  const iconMap: Record<string, string> = {
+    mysql: 'devicon-mysql-plain colored',
+    postgresql: 'devicon-postgresql-plain colored',
+    sqlite: 'devicon-sqlite-plain colored',
+    mongodb: 'devicon-mongodb-plain colored',
+    redis: 'devicon-redis-plain colored',
+  }
+  return iconMap[dbType?.toLowerCase()] || 'devicon-database-plain'
+}
 
 // 过滤连接列表
 const filteredConnections = computed(() => {
@@ -465,7 +477,7 @@ onUnmounted(() => {
 .connection-item {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s;
@@ -515,10 +527,16 @@ onUnmounted(() => {
 }
 
 .connection-icon {
-  font-size: 20px;
-  margin-right: 12px;
+  font-size: 16px;
+  margin-right: 8px;
   color: #1890ff;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.connection-icon i {
+  font-size: 16px;
 }
 
 .connection-info {
@@ -551,8 +569,8 @@ onUnmounted(() => {
 .database-objects {
   background: #f8f9fa;
   border-top: 1px solid #e8e8e8;
-  margin-top: 4px;
-  padding: 8px 0 8px 12px;
+  margin-top: 2px;
+  padding: 4px 0 4px 8px;
   border-radius: 0 0 6px 6px;
 }
 

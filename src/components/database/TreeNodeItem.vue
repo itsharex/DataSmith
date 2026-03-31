@@ -14,6 +14,7 @@
       </span>
       <span class="tree-node-icon">
         <LoadingOutlined v-if="isLoading" spin />
+        <i v-else-if="getDeviconClass(node)" :class="getDeviconClass(node)"></i>
         <component v-else :is="getIcon(node.type)" />
       </span>
       <span class="tree-node-title">{{ node.title }}</span>
@@ -57,6 +58,7 @@ interface TreeNode {
   isLeaf?: boolean
   children?: TreeNode[]
   metadata?: any
+  dbType?: string
 }
 
 const props = defineProps<{
@@ -118,6 +120,22 @@ const getIcon = (type: string) => {
   }
   return iconMap[type] || FileOutlined
 }
+
+// 获取 devicon 图标类名
+const getDeviconClass = (node: TreeNode): string | null => {
+  const dbType = node.dbType || node.metadata?.dbType
+  if (!dbType) return null
+  
+  const deviconMap: Record<string, string> = {
+    mysql: 'devicon-mysql-plain colored',
+    postgresql: 'devicon-postgresql-plain colored',
+    sqlite: 'devicon-sqlite-plain colored',
+    mongodb: 'devicon-mongodb-plain colored',
+    redis: 'devicon-redis-plain colored',
+  }
+  
+  return deviconMap[dbType.toLowerCase()] || null
+}
 </script>
 
 <style scoped>
@@ -128,7 +146,7 @@ const getIcon = (type: string) => {
 .tree-node-content {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 2px 4px;
   cursor: pointer;
   user-select: none;
   transition: background-color 0.2s;
@@ -155,10 +173,10 @@ const getIcon = (type: string) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-right: 4px;
-  font-size: 12px;
+  width: 16px;
+  height: 16px;
+  margin-right: 2px;
+  font-size: 10px;
   color: #8c8c8c;
   flex-shrink: 0;
 }
@@ -171,10 +189,14 @@ const getIcon = (type: string) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-right: 8px;
-  font-size: 16px;
+  margin-right: 4px;
+  font-size: 14px;
   color: #1890ff;
   flex-shrink: 0;
+}
+
+.tree-node-icon i {
+  font-size: 14px;
 }
 
 .tree-node-title {
