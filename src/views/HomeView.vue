@@ -141,6 +141,11 @@
               :table="tab.table"
               :schema="tab.schema"
             />
+            <RedisKeyViewer
+              v-else-if="tab.type === 'redis-key'"
+              :connection-id="tab.connectionId"
+              :key-name="tab.table"
+            />
           </a-tab-pane>
         </a-tabs>
 
@@ -298,6 +303,7 @@ import ConnectionPanel from '@/components/connection/ConnectionPanel.vue'
 import ConnectionDialog from '@/components/connection/ConnectionDialog.vue'
 import SqlEditor from '@/components/editor/SqlEditor.vue'
 import RedisEditor from '@/components/editor/RedisEditor.vue'
+import RedisKeyViewer from '@/components/editor/RedisKeyViewer.vue'
 import TableDataGrid from '@/components/data/TableDataGrid.vue'
 import TableDesigner from '@/components/database/TableDesigner.vue'
 import GlobalSearch from '@/components/search/GlobalSearch.vue'
@@ -341,7 +347,7 @@ const settingsForm = reactive({
 interface DataTab {
   key: string
   title: string
-  type: 'data' | 'design'
+  type: 'data' | 'design' | 'redis-key'
   connectionId: string
   database: string
   table: string
@@ -485,12 +491,20 @@ function handleTableSelected(data: any) {
   console.log('数据库:', data.database)
   console.log('表名:', data.table)
   console.log('connectionId:', data.connectionId)
+  console.log('metadata:', data.metadata)
   console.log('当前活动连接:', connectionStore.activeConnectionId)
   
   const connectionId = data.connectionId || connectionStore.activeConnectionId
   console.log('使用的连接ID:', connectionId)
   
-  const tabKey = `table-${connectionId}-${data.database}-${data.table}`
+  // 检查是否是 Redis 键
+  const isRedisKey = data.metadata?.nodeType === 'redis-key' ||
+                     connectionStore.getActiveConnection()?.db_type === 'redis'
+  
+  // 根据类型生成不同的标签 key
+  const tabKey = isRedisKey
+    ? `redis-key-${connectionId}-${data.table}`
+    : `table-${connectionId}-${data.database}-${data.table}`
   console.log('生成的标签 key:', tabKey)
   
   // 检查是否已经打开
@@ -504,10 +518,10 @@ function handleTableSelected(data: any) {
   }
 
   // 添加新标签
-  const newTab = {
+  const newTab: DataTab = {
     key: tabKey,
     title: `${data.table}`,
-    type: 'data' as const,
+    type: isRedisKey ? 'redis-key' : 'data',
     connectionId: connectionId!,
     database: data.database,
     table: data.table,

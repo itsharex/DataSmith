@@ -75,6 +75,10 @@ fn main() {
             commands::redis::get_redis_key_value,
             commands::redis::set_redis_key_value,
             commands::redis::delete_redis_key,
+            commands::redis::set_redis_list_value,
+            commands::redis::set_redis_set_value,
+            commands::redis::set_redis_zset_value,
+            commands::redis::set_redis_hash_value,
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]

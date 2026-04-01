@@ -29,7 +29,7 @@
           <a-space style="margin-top: 12px">
             <a-button v-if="!editing" @click="editing = true">编辑</a-button>
             <template v-else>
-              <a-button type="primary" @click="handleSave">保存</a-button>
+              <a-button type="primary" @click="handleSaveString">保存</a-button>
               <a-button @click="cancelEdit">取消</a-button>
             </template>
           </a-space>
@@ -37,52 +37,116 @@
         
         <!-- 列表类型 -->
         <div v-else-if="keyData.key_type === 'list'">
-          <a-list
-            :data-source="(keyData.value as string[])"
-            bordered
-            size="small"
-          >
-            <template #renderItem="{ item, index }">
-              <a-list-item>
-                <strong>[{{ index }}]</strong> {{ item }}
-              </a-list-item>
+          <div class="list-editor">
+            <div v-for="(item, index) in editedListItems" :key="index" class="list-item-row">
+              <a-input
+                v-model:value="editedListItems[index]"
+                :placeholder="`元素 ${index}`"
+                style="flex: 1"
+              />
+              <a-button type="text" danger @click="removeListItem(index)">
+                <DeleteOutlined />
+              </a-button>
+            </div>
+            <a-button type="dashed" block @click="addListItem" style="margin-top: 8px">
+              <PlusOutlined /> 添加元素
+            </a-button>
+          </div>
+          <a-space style="margin-top: 12px">
+            <a-button v-if="!editing" @click="startEditList">编辑</a-button>
+            <template v-else>
+              <a-button type="primary" @click="handleSaveList">保存</a-button>
+              <a-button @click="cancelEdit">取消</a-button>
             </template>
-          </a-list>
+          </a-space>
         </div>
         
         <!-- 集合类型 -->
         <div v-else-if="keyData.key_type === 'set'">
-          <a-list
-            :data-source="(keyData.value as string[])"
-            bordered
-            size="small"
-          >
-            <template #renderItem="{ item }">
-              <a-list-item>{{ item }}</a-list-item>
+          <div class="set-editor">
+            <div v-for="(item, index) in editedSetItems" :key="index" class="set-item-row">
+              <a-input
+                v-model:value="editedSetItems[index]"
+                :placeholder="`成员 ${index + 1}`"
+                style="flex: 1"
+              />
+              <a-button type="text" danger @click="removeSetItem(index)">
+                <DeleteOutlined />
+              </a-button>
+            </div>
+            <a-button type="dashed" block @click="addSetItem" style="margin-top: 8px">
+              <PlusOutlined /> 添加成员
+            </a-button>
+          </div>
+          <a-space style="margin-top: 12px">
+            <a-button v-if="!editing" @click="startEditSet">编辑</a-button>
+            <template v-else>
+              <a-button type="primary" @click="handleSaveSet">保存</a-button>
+              <a-button @click="cancelEdit">取消</a-button>
             </template>
-          </a-list>
+          </a-space>
         </div>
         
         <!-- 有序集合类型 -->
         <div v-else-if="keyData.key_type === 'zset'">
-          <a-table
-            :columns="zsetColumns"
-            :data-source="formatZsetData(keyData.value)"
-            :pagination="false"
-            size="small"
-            bordered
-          />
+          <div class="zset-editor">
+            <div v-for="(item, index) in editedZsetItems" :key="index" class="zset-item-row">
+              <a-input-number
+                v-model:value="item.score"
+                placeholder="分数"
+                style="width: 120px"
+              />
+              <a-input
+                v-model:value="item.member"
+                placeholder="成员"
+                style="flex: 1"
+              />
+              <a-button type="text" danger @click="removeZsetItem(index)">
+                <DeleteOutlined />
+              </a-button>
+            </div>
+            <a-button type="dashed" block @click="addZsetItem" style="margin-top: 8px">
+              <PlusOutlined /> 添加成员
+            </a-button>
+          </div>
+          <a-space style="margin-top: 12px">
+            <a-button v-if="!editing" @click="startEditZset">编辑</a-button>
+            <template v-else>
+              <a-button type="primary" @click="handleSaveZset">保存</a-button>
+              <a-button @click="cancelEdit">取消</a-button>
+            </template>
+          </a-space>
         </div>
         
         <!-- 哈希类型 -->
         <div v-else-if="keyData.key_type === 'hash'">
-          <a-table
-            :columns="hashColumns"
-            :data-source="formatHashData(keyData.value)"
-            :pagination="false"
-            size="small"
-            bordered
-          />
+          <div class="hash-editor">
+            <div v-for="(item, index) in editedHashItems" :key="index" class="hash-item-row">
+              <a-input
+                v-model:value="item.field"
+                placeholder="字段"
+                style="width: 150px"
+              />
+              <a-input
+                v-model:value="item.value"
+                placeholder="值"
+                style="flex: 1"
+              />
+              <a-button type="text" danger @click="removeHashItem(index)">
+                <DeleteOutlined />
+              </a-button>
+            </div>
+            <a-button type="dashed" block @click="addHashItem" style="margin-top: 8px">
+              <PlusOutlined /> 添加字段
+            </a-button>
+          </div>
+          <a-space style="margin-top: 12px">
+            <a-button v-if="!editing" @click="startEditHash">编辑</a-button>
+            <template v-else>
+              <a-button type="primary" @click="handleSaveHash">保存</a-button>
+              <a-button @click="cancelEdit">取消</a-button>
+            </template>
+          </a-space>
         </div>
         
         <!-- 未知类型 -->
@@ -99,6 +163,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
 
 const props = defineProps<{
@@ -113,33 +178,25 @@ const keyData = ref<any>(null)
 const editing = ref(false)
 const editedValue = ref('')
 
-// 哈希表列
-const hashColumns = [
-  {
-    title: '字段',
-    dataIndex: 'field',
-    key: 'field',
-  },
-  {
-    title: '值',
-    dataIndex: 'value',
-    key: 'value',
-  },
-]
+// 列表编辑数据
+const editedListItems = ref<string[]>([])
 
-// 有序集合列
-const zsetColumns = [
-  {
-    title: '成员',
-    dataIndex: 'member',
-    key: 'member',
-  },
-  {
-    title: '分数',
-    dataIndex: 'score',
-    key: 'score',
-  },
-]
+// 集合编辑数据
+const editedSetItems = ref<string[]>([])
+
+// 有序集合编辑数据
+interface ZsetItem {
+  member: string
+  score: number
+}
+const editedZsetItems = ref<ZsetItem[]>([])
+
+// 哈希编辑数据
+interface HashItem {
+  field: string
+  value: string
+}
+const editedHashItems = ref<HashItem[]>([])
 
 // 获取类型颜色
 function getTypeColor(type: string): string {
@@ -151,37 +208,6 @@ function getTypeColor(type: string): string {
     hash: 'cyan',
   }
   return colors[type] || 'default'
-}
-
-// 格式化哈希数据
-function formatHashData(value: any): any[] {
-  if (Array.isArray(value)) {
-    const result = []
-    for (let i = 0; i < value.length; i += 2) {
-      result.push({
-        field: value[i],
-        value: value[i + 1],
-      })
-    }
-    return result
-  }
-  return []
-}
-
-// 格式化有序集合数据
-function formatZsetData(value: any): any[] {
-  if (Array.isArray(value)) {
-    return value.map((item: any) => {
-      if (Array.isArray(item) && item.length === 2) {
-        return {
-          member: item[0],
-          score: item[1],
-        }
-      }
-      return item
-    })
-  }
-  return []
 }
 
 // 加载键值
@@ -197,9 +223,17 @@ async function loadKeyValue() {
     
     keyData.value = result
     
-    // 如果是字符串类型，初始化编辑值
+    // 根据类型初始化编辑数据
     if (result.key_type === 'string') {
       editedValue.value = result.value
+    } else if (result.key_type === 'list') {
+      editedListItems.value = [...(result.value as string[])]
+    } else if (result.key_type === 'set') {
+      editedSetItems.value = [...(result.value as string[])]
+    } else if (result.key_type === 'zset') {
+      editedZsetItems.value = formatZsetData(result.value)
+    } else if (result.key_type === 'hash') {
+      editedHashItems.value = formatHashData(result.value)
     }
   } catch (error: any) {
     message.error(`获取键值失败: ${error}`)
@@ -208,8 +242,61 @@ async function loadKeyValue() {
   }
 }
 
-// 保存编辑
-async function handleSave() {
+// 格式化哈希数据
+function formatHashData(value: any): HashItem[] {
+  if (Array.isArray(value)) {
+    const result: HashItem[] = []
+    for (let i = 0; i < value.length; i += 2) {
+      result.push({
+        field: value[i] || '',
+        value: value[i + 1] || '',
+      })
+    }
+    return result
+  }
+  return []
+}
+
+// 格式化有序集合数据
+function formatZsetData(value: any): ZsetItem[] {
+  if (Array.isArray(value)) {
+    return value.map((item: any) => {
+      if (Array.isArray(item) && item.length === 2) {
+        return {
+          member: String(item[0]),
+          score: Number(item[1]),
+        }
+      }
+      return {
+        member: String(item),
+        score: 0,
+      }
+    })
+  }
+  return []
+}
+
+// 取消编辑
+function cancelEdit() {
+  editing.value = false
+  // 恢复原始数据
+  if (keyData.value) {
+    if (keyData.value.key_type === 'string') {
+      editedValue.value = keyData.value.value
+    } else if (keyData.value.key_type === 'list') {
+      editedListItems.value = [...(keyData.value.value as string[])]
+    } else if (keyData.value.key_type === 'set') {
+      editedSetItems.value = [...(keyData.value.value as string[])]
+    } else if (keyData.value.key_type === 'zset') {
+      editedZsetItems.value = formatZsetData(keyData.value.value)
+    } else if (keyData.value.key_type === 'hash') {
+      editedHashItems.value = formatHashData(keyData.value.value)
+    }
+  }
+}
+
+// ===== 字符串操作 =====
+async function handleSaveString() {
   try {
     await invoke('set_redis_key_value', {
       connectionId: props.connectionId,
@@ -227,10 +314,136 @@ async function handleSave() {
   }
 }
 
-// 取消编辑
-function cancelEdit() {
-  editing.value = false
-  editedValue.value = keyData.value?.value || ''
+// ===== 列表操作 =====
+function startEditList() {
+  editing.value = true
+}
+
+function addListItem() {
+  editedListItems.value.push('')
+}
+
+function removeListItem(index: number) {
+  editedListItems.value.splice(index, 1)
+}
+
+async function handleSaveList() {
+  try {
+    // 过滤空值
+    const items = editedListItems.value.filter(item => item.trim() !== '')
+    
+    await invoke('set_redis_list_value', {
+      connectionId: props.connectionId,
+      key: props.keyName,
+      values: items,
+    })
+    
+    message.success('保存成功')
+    editing.value = false
+    emit('updated')
+    loadKeyValue()
+  } catch (error: any) {
+    message.error(`保存失败: ${error}`)
+  }
+}
+
+// ===== 集合操作 =====
+function startEditSet() {
+  editing.value = true
+}
+
+function addSetItem() {
+  editedSetItems.value.push('')
+}
+
+function removeSetItem(index: number) {
+  editedSetItems.value.splice(index, 1)
+}
+
+async function handleSaveSet() {
+  try {
+    // 过滤空值
+    const items = editedSetItems.value.filter(item => item.trim() !== '')
+    
+    await invoke('set_redis_set_value', {
+      connectionId: props.connectionId,
+      key: props.keyName,
+      members: items,
+    })
+    
+    message.success('保存成功')
+    editing.value = false
+    emit('updated')
+    loadKeyValue()
+  } catch (error: any) {
+    message.error(`保存失败: ${error}`)
+  }
+}
+
+// ===== 有序集合操作 =====
+function startEditZset() {
+  editing.value = true
+}
+
+function addZsetItem() {
+  editedZsetItems.value.push({ member: '', score: 0 })
+}
+
+function removeZsetItem(index: number) {
+  editedZsetItems.value.splice(index, 1)
+}
+
+async function handleSaveZset() {
+  try {
+    // 过滤空成员
+    const items = editedZsetItems.value.filter(item => item.member.trim() !== '')
+    
+    await invoke('set_redis_zset_value', {
+      connectionId: props.connectionId,
+      key: props.keyName,
+      members: items.map(item => ({ member: item.member, score: item.score })),
+    })
+    
+    message.success('保存成功')
+    editing.value = false
+    emit('updated')
+    loadKeyValue()
+  } catch (error: any) {
+    message.error(`保存失败: ${error}`)
+  }
+}
+
+// ===== 哈希操作 =====
+function startEditHash() {
+  editing.value = true
+}
+
+function addHashItem() {
+  editedHashItems.value.push({ field: '', value: '' })
+}
+
+function removeHashItem(index: number) {
+  editedHashItems.value.splice(index, 1)
+}
+
+async function handleSaveHash() {
+  try {
+    // 过滤空字段
+    const items = editedHashItems.value.filter(item => item.field.trim() !== '')
+    
+    await invoke('set_redis_hash_value', {
+      connectionId: props.connectionId,
+      key: props.keyName,
+      fields: items,
+    })
+    
+    message.success('保存成功')
+    editing.value = false
+    emit('updated')
+    loadKeyValue()
+  } catch (error: any) {
+    message.error(`保存失败: ${error}`)
+  }
 }
 
 // 删除键
@@ -274,5 +487,22 @@ watch(() => props.keyName, () => {
   height: 100%;
   overflow: auto;
 }
-</style>
 
+.list-item-row,
+.set-item-row,
+.zset-item-row,
+.hash-item-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.zset-item-row {
+  gap: 12px;
+}
+
+.hash-item-row {
+  gap: 12px;
+}
+</style>

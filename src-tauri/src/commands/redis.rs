@@ -230,6 +230,130 @@ pub async fn delete_redis_key(
     redis_db.delete_key(&key).await.map_err(|e| e.to_string())
 }
 
+/// 设置 List 类型的值
+#[tauri::command]
+pub async fn set_redis_list_value(
+    connection_id: String,
+    key: String,
+    values: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let manager = state.connection_manager.lock().await;
+    let connections = manager
+        .get_connection(&connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let connections_guard = connections.read().await;
+    let db = connections_guard
+        .get(&connection_id)
+        .ok_or_else(|| "连接不存在".to_string())?;
+
+    let redis_db = db
+        .as_any()
+        .downcast_ref::<RedisDatabase>()
+        .ok_or_else(|| "不是 Redis 连接".to_string())?;
+
+    redis_db.set_list_value(&key, values).await.map_err(|e| e.to_string())
+}
+
+/// 设置 Set 类型的值
+#[tauri::command]
+pub async fn set_redis_set_value(
+    connection_id: String,
+    key: String,
+    members: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let manager = state.connection_manager.lock().await;
+    let connections = manager
+        .get_connection(&connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let connections_guard = connections.read().await;
+    let db = connections_guard
+        .get(&connection_id)
+        .ok_or_else(|| "连接不存在".to_string())?;
+
+    let redis_db = db
+        .as_any()
+        .downcast_ref::<RedisDatabase>()
+        .ok_or_else(|| "不是 Redis 连接".to_string())?;
+
+    redis_db.set_set_value(&key, members).await.map_err(|e| e.to_string())
+}
+
+/// ZSet 成员
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZSetMember {
+    pub member: String,
+    pub score: f64,
+}
+
+/// 设置 ZSet 类型的值
+#[tauri::command]
+pub async fn set_redis_zset_value(
+    connection_id: String,
+    key: String,
+    members: Vec<ZSetMember>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let manager = state.connection_manager.lock().await;
+    let connections = manager
+        .get_connection(&connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let connections_guard = connections.read().await;
+    let db = connections_guard
+        .get(&connection_id)
+        .ok_or_else(|| "连接不存在".to_string())?;
+
+    let redis_db = db
+        .as_any()
+        .downcast_ref::<RedisDatabase>()
+        .ok_or_else(|| "不是 Redis 连接".to_string())?;
+
+    let members: Vec<(String, f64)> = members.into_iter().map(|m| (m.member, m.score)).collect();
+    redis_db.set_zset_value(&key, members).await.map_err(|e| e.to_string())
+}
+
+/// Hash 字段
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HashField {
+    pub field: String,
+    pub value: String,
+}
+
+/// 设置 Hash 类型的值
+#[tauri::command]
+pub async fn set_redis_hash_value(
+    connection_id: String,
+    key: String,
+    fields: Vec<HashField>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let manager = state.connection_manager.lock().await;
+    let connections = manager
+        .get_connection(&connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let connections_guard = connections.read().await;
+    let db = connections_guard
+        .get(&connection_id)
+        .ok_or_else(|| "连接不存在".to_string())?;
+
+    let redis_db = db
+        .as_any()
+        .downcast_ref::<RedisDatabase>()
+        .ok_or_else(|| "不是 Redis 连接".to_string())?;
+
+    let fields: Vec<(String, String)> = fields.into_iter().map(|f| (f.field, f.value)).collect();
+    redis_db.set_hash_value(&key, fields).await.map_err(|e| e.to_string())
+}
+
 /// 将 Redis Value 转换为 JSON
 fn redis_value_to_json(value: redis::Value) -> serde_json::Value {
     match value {

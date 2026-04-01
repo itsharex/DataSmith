@@ -987,6 +987,7 @@ async function handleDoubleClick(node: TreeNode) {
     console.log('=== 处理表/视图/集合/Redis键双击 ===')
     console.log('名称:', node.metadata?.name || node.title)
     console.log('数据库:', node.metadata?.database)
+    console.log('节点类型:', node.type)
     
     // 双击时查看数据
     const key = node.key
@@ -998,7 +999,10 @@ async function handleDoubleClick(node: TreeNode) {
       const eventData = {
         database: node.metadata.database,
         table: node.metadata.name || node.title,
-        metadata: node.metadata,
+        metadata: {
+          ...node.metadata,
+          nodeType: node.type,  // 传递节点类型，用于区分 Redis 键
+        },
       }
       
       console.log('准备触发 table-selected 事件，数据:', eventData)

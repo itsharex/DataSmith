@@ -390,5 +390,111 @@ impl RedisDatabase {
             .await
             .map_err(|e| DbError::QueryFailed(format!("获取 TTL 失败: {}", e)))
     }
+    
+    /// 设置 List 类型的值
+    pub async fn set_list_value(&self, key: &str, values: Vec<String>) -> DbResult<()> {
+        use redis::AsyncCommands;
+        
+        let conn = self
+            .connection
+            .as_ref()
+            .ok_or_else(|| DbError::ConnectionFailed("未连接到 Redis".to_string()))?;
+        
+        let mut conn = conn.clone();
+        
+        // 先删除旧值
+        conn.del::<_, ()>(key)
+            .await
+            .map_err(|e| DbError::QueryFailed(format!("删除旧值失败: {}", e)))?;
+        
+        // 如果有新值，则设置
+        if !values.is_empty() {
+            conn.rpush::<_, _, ()>(key, values)
+                .await
+                .map_err(|e| DbError::QueryFailed(format!("设置 List 值失败: {}", e)))?;
+        }
+        
+        Ok(())
+    }
+    
+    /// 设置 Set 类型的值
+    pub async fn set_set_value(&self, key: &str, members: Vec<String>) -> DbResult<()> {
+        use redis::AsyncCommands;
+        
+        let conn = self
+            .connection
+            .as_ref()
+            .ok_or_else(|| DbError::ConnectionFailed("未连接到 Redis".to_string()))?;
+        
+        let mut conn = conn.clone();
+        
+        // 先删除旧值
+        conn.del::<_, ()>(key)
+            .await
+            .map_err(|e| DbError::QueryFailed(format!("删除旧值失败: {}", e)))?;
+        
+        // 如果有新值，则设置
+        if !members.is_empty() {
+            conn.sadd::<_, _, ()>(key, members)
+                .await
+                .map_err(|e| DbError::QueryFailed(format!("设置 Set 值失败: {}", e)))?;
+        }
+        
+        Ok(())
+    }
+    
+    /// 设置 ZSet 类型的值
+    pub async fn set_zset_value(&self, key: &str, members: Vec<(String, f64)>) -> DbResult<()> {
+        use redis::AsyncCommands;
+        
+        let conn = self
+            .connection
+            .as_ref()
+            .ok_or_else(|| DbError::ConnectionFailed("未连接到 Redis".to_string()))?;
+        
+        let mut conn = conn.clone();
+        
+        // 先删除旧值
+        conn.del::<_, ()>(key)
+            .await
+            .map_err(|e| DbError::QueryFailed(format!("删除旧值失败: {}", e)))?;
+        
+        // 如果有新值，则设置
+        if !members.is_empty() {
+            for (member, score) in members {
+                conn.zadd::<_, _, _, ()>(key, score, member)
+                    .await
+                    .map_err(|e| DbError::QueryFailed(format!("设置 ZSet 值失败: {}", e)))?;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// 设置 Hash 类型的值
+    pub async fn set_hash_value(&self, key: &str, fields: Vec<(String, String)>) -> DbResult<()> {
+        use redis::AsyncCommands;
+        
+        let conn = self
+            .connection
+            .as_ref()
+            .ok_or_else(|| DbError::ConnectionFailed("未连接到 Redis".to_string()))?;
+        
+        let mut conn = conn.clone();
+        
+        // 先删除旧值
+        conn.del::<_, ()>(key)
+            .await
+            .map_err(|e| DbError::QueryFailed(format!("删除旧值失败: {}", e)))?;
+        
+        // 如果有新值，则设置
+        if !fields.is_empty() {
+            conn.hset_multiple::<_, _, _, ()>(key, &fields.iter().map(|(f, v)| (f.as_str(), v.as_str())).collect::<Vec<_>>())
+                .await
+                .map_err(|e| DbError::QueryFailed(format!("设置 Hash 值失败: {}", e)))?;
+        }
+        
+        Ok(())
+    }
 }
 
