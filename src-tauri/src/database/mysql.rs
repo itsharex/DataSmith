@@ -174,13 +174,24 @@ impl DatabaseOperations for MySqlDatabase {
             println!("执行第 {} 条SQL: {}", idx + 1, stmt);
             
             // 判断是否为查询语句
-            let is_select = stmt.trim().to_uppercase().starts_with("SELECT")
-                || stmt.trim().to_uppercase().starts_with("SHOW")
-                || stmt.trim().to_uppercase().starts_with("DESCRIBE")
-                || stmt.trim().to_uppercase().starts_with("EXPLAIN");
+            let stmt_upper = stmt.trim().to_uppercase();
+            let is_select = stmt_upper.starts_with("SELECT")
+                || stmt_upper.starts_with("SHOW")
+                || stmt_upper.starts_with("DESCRIBE")
+                || stmt_upper.starts_with("EXPLAIN");
             
-            if is_select {
-                // 查询语句
+            // 判断是否需要使用 raw_sql（不支持 prepared statement 的语句）
+            let needs_raw_sql = stmt_upper.starts_with("LOCK TABLES")
+                || stmt_upper.starts_with("UNLOCK TABLES")
+                || stmt_upper.starts_with("LOAD DATA")
+                || stmt_upper.starts_with("LOAD XML")
+                || stmt_upper.starts_with("OPTIMIZE TABLE")
+                || stmt_upper.starts_with("ANALYZE TABLE")
+                || stmt_upper.starts_with("CHECK TABLE")
+                || stmt_upper.starts_with("REPAIR TABLE");
+            
+            if is_select && !needs_raw_sql {
+                // 查询语句（使用 prepared statement）
                 let rows = sqlx::query(stmt)
                     .fetch_all(&mut *conn)
                     .await
@@ -188,8 +199,16 @@ impl DatabaseOperations for MySqlDatabase {
                 
                 // 保存最后一个查询结果
                 last_query_result = Some(self.process_query_result_with_start(rows, start)?);
+            } else if needs_raw_sql {
+                // 不支持 prepared statement 的语句，使用 raw_sql
+                use sqlx::Executor;
+                let result = conn.execute(sqlx::raw_sql(stmt))
+                    .await
+                    .map_err(|e| DbError::QueryFailed(format!("语句 {} 执行失败: {}", idx + 1, e)))?;
+                
+                total_affected_rows += result.rows_affected();
             } else {
-                // 非查询语句
+                // 非查询语句（使用 prepared statement）
                 let result = sqlx::query(stmt)
                     .execute(&mut *conn)
                     .await
@@ -616,12 +635,69 @@ impl MySqlDatabase {
         println!("执行单条SQL: {}", sql);
 
         // 判断是否为查询语句
-        let is_select = sql.trim().to_uppercase().starts_with("SELECT")
-            || sql.trim().to_uppercase().starts_with("SHOW")
-            || sql.trim().to_uppercase().starts_with("DESCRIBE")
-            || sql.trim().to_uppercase().starts_with("EXPLAIN");
+        let sql_upper = sql.trim().to_uppercase();
+        let is_select = sql_upper.starts_with("SELECT")
+            || sql_upper.starts_with("SHOW")
+            || sql_upper.starts_with("DESCRIBE")
+            || sql_upper.starts_with("EXPLAIN");
+        
+        // 判断是否需要使用 raw_sql（不支持 prepared statement 的语句）
+        let needs_raw_sql = sql_upper.starts_with("LOCK TABLES")
+            || sql_upper.starts_with("UNLOCK TABLES")
+            || sql_upper.starts_with("LOAD DATA")
+            || sql_upper.starts_with("LOAD XML")
+            || sql_upper.starts_with("OPTIMIZE TABLE")
+            || sql_upper.starts_with("ANALYZE TABLE")
+            || sql_upper.starts_with("CHECK TABLE")
+            || sql_upper.starts_with("REPAIR TABLE");
 
-        if is_select {
+        if needs_raw_sql {
+            // 不支持 prepared statement 的语句，使用 raw_sql
+            if let Some(db_name) = database {
+                if !db_name.is_empty() {
+                    let mut conn = pool.acquire()
+                        .await
+                        .map_err(|e| DbError::QueryFailed(format!("获取连接失败: {}", e)))?;
+                    
+                    // 设置数据库上下文
+                    let use_sql = format!("USE `{}`", db_name);
+                    println!("设置数据库上下文: {}", use_sql);
+                    conn.execute(use_sql.as_str())
+                        .await
+                        .map_err(|e| DbError::QueryFailed(format!("切换数据库失败: {}", e)))?;
+                    
+                    // 使用 raw_sql 执行
+                    let result = conn.execute(sqlx::raw_sql(sql))
+                        .await
+                        .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+
+                    let duration = start.elapsed();
+                    return Ok(QueryResult {
+                        columns: vec![],
+                        rows: vec![],
+                        affected_rows: result.rows_affected(),
+                        execution_time_ms: duration.as_millis(),
+                    });
+                }
+            }
+            
+            // 没有指定数据库，直接执行
+            let mut conn = pool.acquire()
+                .await
+                .map_err(|e| DbError::QueryFailed(format!("获取连接失败: {}", e)))?;
+            
+            let result = conn.execute(sqlx::raw_sql(sql))
+                .await
+                .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+
+            let duration = start.elapsed();
+            Ok(QueryResult {
+                columns: vec![],
+                rows: vec![],
+                affected_rows: result.rows_affected(),
+                execution_time_ms: duration.as_millis(),
+            })
+        } else if is_select {
             // 如果指定了数据库，获取专用连接并设置数据库上下文
             if let Some(db_name) = database {
                 if !db_name.is_empty() {
