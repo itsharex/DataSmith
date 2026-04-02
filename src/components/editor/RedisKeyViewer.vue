@@ -46,7 +46,7 @@
         <!-- 列表类型 -->
         <div v-else-if="keyData.key_type === 'list'">
           <div class="list-editor">
-            <div v-for="(item, index) in editedListItems" :key="index" class="list-item-row">
+            <div v-for="(_, index) in editedListItems" :key="index" class="list-item-row">
               <span class="item-index">[{{ index }}]</span>
               <a-input
                 v-model:value="editedListItems[index]"
@@ -73,7 +73,7 @@
         <!-- 集合类型 -->
         <div v-else-if="keyData.key_type === 'set'">
           <div class="set-editor">
-            <div v-for="(item, index) in editedSetItems" :key="index" class="set-item-row">
+            <div v-for="(_, index) in editedSetItems" :key="index" class="set-item-row">
               <a-input
                 v-model:value="editedSetItems[index]"
                 :placeholder="`成员 ${index + 1}`"

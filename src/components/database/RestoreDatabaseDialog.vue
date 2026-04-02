@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { FileOutlined } from '@ant-design/icons-vue'
-import { message, Modal } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 
