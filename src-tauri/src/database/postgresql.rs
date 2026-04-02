@@ -816,6 +816,34 @@ impl DatabaseOperations for PostgreSqlDatabase {
         Ok(index_map.into_values().collect())
     }
     
+    async fn get_table_options(&self, table: &str, schema: Option<&str>) -> DbResult<TableOptions> {
+        let pool = self.pool.as_ref()
+            .ok_or_else(|| DbError::ConnectionFailed("未连接到数据库".to_string()))?;
+        let schema_name = schema.unwrap_or("public");
+
+        let row = sqlx::query(
+            "SELECT obj_description(c.oid) as comment
+             FROM pg_class c
+             JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE c.relname = $1 AND n.nspname = $2 AND c.relkind = 'r'"
+        )
+        .bind(table)
+        .bind(schema_name)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+
+        let comment = row.and_then(|r| r.try_get("comment").ok());
+
+        Ok(TableOptions {
+            engine: None,
+            charset: None,
+            collation: None,
+            comment,
+            auto_increment: None,
+        })
+    }
+    
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

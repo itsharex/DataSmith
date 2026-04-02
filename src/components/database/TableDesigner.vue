@@ -25,16 +25,17 @@
       <a-tabs v-model:activeKey="activeTab">
         <!-- 列定义 -->
         <a-tab-pane key="columns" tab="列">
-          <a-table
-            :columns="columnEditorColumns"
-            :data-source="tableColumns"
-            :loading="loading"
-            :pagination="false"
-            :scroll="{ x: 'max-content', y: 'calc(100vh - 350px)' }"
-            size="small"
-            bordered
-            row-key="name"
-          >
+          <div style="padding: 16px;">
+            <a-table
+              :columns="columnEditorColumns"
+              :data-source="tableColumns"
+              :loading="loading"
+              :pagination="false"
+              :scroll="{ x: 'max-content', y: 'calc(100vh - 350px)' }"
+              size="small"
+              bordered
+              row-key="name"
+            >
             <template #bodyCell="{ column, record, index }">
               <!-- 列名 -->
               <template v-if="column.dataIndex === 'name'">
@@ -143,6 +144,7 @@
               </template>
             </template>
           </a-table>
+          </div>
         </a-tab-pane>
 
         <!-- 索引 -->
@@ -220,30 +222,30 @@
           <div style="padding: 16px;">
             <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
               <a-form-item label="表名">
-                <a-input v-model:value="tableOptions.tableName" />
+                <a-input v-model:value="tableOptions.tableName" @change="tableOptions._modified = true" />
               </a-form-item>
               <a-form-item label="存储引擎">
-                <a-select v-model:value="tableOptions.engine">
+                <a-select v-model:value="tableOptions.engine" @change="tableOptions._modified = true">
                   <a-select-option value="InnoDB">InnoDB</a-select-option>
                   <a-select-option value="MyISAM">MyISAM</a-select-option>
                   <a-select-option value="MEMORY">MEMORY</a-select-option>
                 </a-select>
               </a-form-item>
               <a-form-item label="字符集">
-                <a-select v-model:value="tableOptions.charset">
+                <a-select v-model:value="tableOptions.charset" @change="tableOptions._modified = true">
                   <a-select-option value="utf8mb4">utf8mb4</a-select-option>
                   <a-select-option value="utf8">utf8</a-select-option>
                   <a-select-option value="latin1">latin1</a-select-option>
                 </a-select>
               </a-form-item>
               <a-form-item label="排序规则">
-                <a-select v-model:value="tableOptions.collation">
+                <a-select v-model:value="tableOptions.collation" @change="tableOptions._modified = true">
                   <a-select-option value="utf8mb4_general_ci">utf8mb4_general_ci</a-select-option>
                   <a-select-option value="utf8mb4_unicode_ci">utf8mb4_unicode_ci</a-select-option>
                 </a-select>
               </a-form-item>
               <a-form-item label="表注释">
-                <a-textarea v-model:value="tableOptions.comment" :rows="3" />
+                <a-textarea v-model:value="tableOptions.comment" :rows="3" @change="tableOptions._modified = true" />
               </a-form-item>
             </a-form>
           </div>
@@ -397,6 +399,7 @@ const tableOptions = reactive({
   charset: 'utf8mb4',
   collation: 'utf8mb4_general_ci',
   comment: '',
+  _modified: false,
 })
 
 // 数据类型列表
@@ -505,6 +508,29 @@ async function loadStructure() {
       tableForeignKeys.value = []
     }
     
+    // 加载表选项
+    try {
+      const options = await invoke<{
+        engine: string | null
+        charset: string | null
+        collation: string | null
+        comment: string | null
+        auto_increment: number | null
+      }>('get_table_options', {
+        connectionId: props.connectionId,
+        table: props.table,
+        schema: props.schema || props.database,
+      })
+      
+      tableOptions.engine = options.engine || 'InnoDB'
+      tableOptions.charset = options.charset || 'utf8mb4'
+      tableOptions.collation = options.collation || 'utf8mb4_general_ci'
+      tableOptions.comment = options.comment || ''
+      tableOptions._modified = false
+    } catch (error) {
+      console.error('加载表选项失败:', error)
+    }
+    
     message.success('表结构加载成功')
   } catch (error: any) {
     message.error(`加载表结构失败: ${error}`)
@@ -597,6 +623,35 @@ async function saveChanges() {
       }
     }
     
+    // 处理表选项的修改
+    if (tableOptions._modified) {
+      const tableOptionsParts: string[] = []
+      
+      // 表注释
+      if (tableOptions.comment !== undefined) {
+        tableOptionsParts.push(`COMMENT='${tableOptions.comment.replace(/'/g, "''")}'`)
+      }
+      
+      // 存储引擎
+      if (tableOptions.engine) {
+        tableOptionsParts.push(`ENGINE=${tableOptions.engine}`)
+      }
+      
+      // 字符集
+      if (tableOptions.charset) {
+        tableOptionsParts.push(`DEFAULT CHARSET=${tableOptions.charset}`)
+      }
+      
+      // 排序规则
+      if (tableOptions.collation) {
+        tableOptionsParts.push(`COLLATE=${tableOptions.collation}`)
+      }
+      
+      if (tableOptionsParts.length > 0) {
+        alterStatements.push(tableOptionsParts.join(' '))
+      }
+    }
+    
     if (alterStatements.length === 0) {
       message.info('没有需要保存的更改')
       return
@@ -611,6 +666,9 @@ async function saveChanges() {
     })
     
     message.success('表结构已保存')
+    
+    // 重置修改标志
+    tableOptions._modified = false
     
     // 重新加载
     await loadStructure()

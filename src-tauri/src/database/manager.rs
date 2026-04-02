@@ -201,6 +201,21 @@ impl ConnectionManager {
         db.get_table_structure(table, schema, database).await
     }
     
+    /// 获取表选项
+    pub async fn get_table_options(
+        &self,
+        connection_id: &str,
+        table: &str,
+        schema: Option<&str>,
+    ) -> DbResult<TableOptions> {
+        let connections = self.connections.read().await;
+        let db = connections
+            .get(connection_id)
+            .ok_or_else(|| DbError::ConnectionFailed("连接不存在".to_string()))?;
+
+        db.get_table_options(table, schema).await
+    }
+    
     /// 获取连接的数据库类型
     pub async fn get_database_type(&self, connection_id: &str) -> DbResult<DatabaseType> {
         let connection_types = self.connection_types.read().await;

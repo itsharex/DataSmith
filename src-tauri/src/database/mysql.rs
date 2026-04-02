@@ -441,6 +441,67 @@ impl DatabaseOperations for MySqlDatabase {
         Ok(index_map.into_values().collect())
     }
     
+    async fn get_table_options(&self, table: &str, schema: Option<&str>) -> DbResult<TableOptions> {
+        let pool = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| DbError::ConnectionFailed("未连接到数据库".to_string()))?;
+
+        let db_name = schema.or_else(|| {
+            self.config.as_ref().and_then(|c| c.database.as_deref())
+        }).ok_or_else(|| DbError::ConfigError("未指定数据库".to_string()))?;
+
+        let rows = sqlx::query(
+            "SELECT ENGINE, TABLE_COLLATION, TABLE_COMMENT, AUTO_INCREMENT,
+                    CCSA.CHARACTER_SET_NAME as CHARSET
+             FROM information_schema.TABLES T
+             LEFT JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
+                ON CCSA.COLLATION_NAME = T.TABLE_COLLATION
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"
+        )
+        .bind(db_name)
+        .bind(table)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+
+        if let Some(row) = rows.first() {
+            let engine: Option<String> = row.try_get("ENGINE")
+                .ok()
+                .map(|b: Vec<u8>| String::from_utf8_lossy(&b).into_owned());
+            
+            let collation: Option<String> = row.try_get("TABLE_COLLATION")
+                .ok()
+                .map(|b: Vec<u8>| String::from_utf8_lossy(&b).into_owned());
+            
+            let comment: Option<String> = row.try_get("TABLE_COMMENT")
+                .ok()
+                .map(|b: Vec<u8>| String::from_utf8_lossy(&b).into_owned());
+            
+            let charset: Option<String> = row.try_get("CHARSET")
+                .ok()
+                .map(|b: Vec<u8>| String::from_utf8_lossy(&b).into_owned());
+            
+            let auto_increment: Option<u64> = row.try_get("AUTO_INCREMENT").ok();
+
+            Ok(TableOptions {
+                engine,
+                charset,
+                collation,
+                comment,
+                auto_increment,
+            })
+        } else {
+            Ok(TableOptions {
+                engine: None,
+                charset: None,
+                collation: None,
+                comment: None,
+                auto_increment: None,
+            })
+        }
+    }
+    
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

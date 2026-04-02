@@ -230,6 +230,17 @@ impl DatabaseOperations for MongoDatabase {
         Ok(indexes)
     }
     
+    async fn get_table_options(&self, _table: &str, _schema: Option<&str>) -> DbResult<TableOptions> {
+        // MongoDB 是无模式的文档数据库，不支持传统表选项
+        Ok(TableOptions {
+            engine: None,
+            charset: None,
+            collation: None,
+            comment: None,
+            auto_increment: None,
+        })
+    }
+    
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

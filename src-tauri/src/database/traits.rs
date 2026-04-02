@@ -84,6 +84,16 @@ pub struct IndexInfo {
     pub index_type: String,
 }
 
+/// 数据库元数据 - 表选项
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TableOptions {
+    pub engine: Option<String>,
+    pub charset: Option<String>,
+    pub collation: Option<String>,
+    pub comment: Option<String>,
+    pub auto_increment: Option<u64>,
+}
+
 /// 数据库操作结果
 pub type DbResult<T> = Result<T, DbError>;
 
@@ -141,6 +151,9 @@ pub trait DatabaseOperations: Send + Sync {
 
     /// 获取索引信息
     async fn get_indexes(&self, table: &str, schema: Option<&str>) -> DbResult<Vec<IndexInfo>>;
+    
+    /// 获取表选项
+    async fn get_table_options(&self, table: &str, schema: Option<&str>) -> DbResult<TableOptions>;
     
     /// 获取视图列表（默认实现返回空列表）
     async fn get_views(&self, _database: Option<&str>) -> DbResult<Vec<TableInfo>> {

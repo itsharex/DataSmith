@@ -62,6 +62,7 @@ fn main() {
             commands::metadata::drop_event,
             commands::metadata::get_table_indexes,
             commands::metadata::get_table_foreign_keys,
+            commands::metadata::get_table_options,
             commands::metadata::get_create_table_ddl,
             commands::metadata::get_autocomplete_data,
             commands::export::export_to_csv,

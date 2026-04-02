@@ -299,6 +299,17 @@ impl DatabaseOperations for SqliteDatabase {
         Ok(indexes)
     }
     
+    async fn get_table_options(&self, _table: &str, _schema: Option<&str>) -> DbResult<TableOptions> {
+        // SQLite 不支持引擎、字符集等选项
+        Ok(TableOptions {
+            engine: None,
+            charset: None,
+            collation: None,
+            comment: None,
+            auto_increment: None,
+        })
+    }
+    
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

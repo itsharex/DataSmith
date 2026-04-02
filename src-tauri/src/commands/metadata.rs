@@ -1,4 +1,4 @@
-use crate::database::{ColumnInfo, DatabaseInfo, TableInfo, QueryResult, DatabaseType};
+use crate::database::{ColumnInfo, DatabaseInfo, TableInfo, QueryResult, DatabaseType, TableOptions};
 use crate::AppState;
 use tauri::State;
 
@@ -547,6 +547,22 @@ pub async fn get_table_foreign_keys(
     Ok(result.rows.into_iter().map(|row| serde_json::Value::Object(
         row.into_iter().collect()
     )).collect())
+}
+
+/// 获取表选项
+#[tauri::command]
+pub async fn get_table_options(
+    connection_id: String,
+    table: String,
+    schema: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<TableOptions, String> {
+    let manager = state.connection_manager.lock().await;
+    
+    manager
+        .get_table_options(&connection_id, &table, schema.as_deref())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 获取创建表的DDL语句
