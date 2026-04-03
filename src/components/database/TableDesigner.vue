@@ -907,6 +907,7 @@ watch(() => props.table, () => {
 .designer-content {
   flex: 1;
   overflow: auto;
+  padding: 0 16px;
 }
 
 .ddl-content {
