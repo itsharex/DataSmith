@@ -919,3 +919,10 @@ watch(
 }
 </style>
 
+<!-- 非 scoped 样式用于处理全局 dark-mode 类 -->
+<style>
+.dark-mode .table-data-grid .ant-table-thead > tr > th {
+  background: #1f1f1f !important;
+}
+</style>
+
