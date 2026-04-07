@@ -46,9 +46,13 @@
               新建查询
             </a-menu-item>
             <a-menu-divider v-if="isSqlSupported" />
-            <a-menu-item key="open-database">
+            <a-menu-item v-if="!isDatabaseOpen(selectedNode)" key="open-database">
               <FolderOpenOutlined />
               打开数据库
+            </a-menu-item>
+            <a-menu-item v-else key="close-database">
+              <FolderOutlined />
+              关闭数据库
             </a-menu-item>
             <a-menu-divider v-if="isSqlSupported" />
             <a-menu-item v-if="isSqlSupported" key="new-table">
@@ -375,6 +379,7 @@ import {
   ProfileOutlined,
   CopyOutlined,
   FolderOpenOutlined,
+  FolderOutlined,
   PlusOutlined,
   EyeOutlined,
   EditOutlined,
@@ -443,6 +448,12 @@ const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const selectedNode = ref<TreeNode | null>(null)
+
+// 判断数据库节点是否已打开（展开）
+function isDatabaseOpen(node: TreeNode | null): boolean {
+  if (!node || node.type !== 'database') return false
+  return expandedKeys.value.includes(node.key)
+}
 
 // 点击菜单外部关闭菜单
 function closeContextMenu() {
@@ -1265,6 +1276,15 @@ async function handleMenuClick({ key }: { key: string | number }) {
       break
     case 'open-database':
       handleDoubleClick(selectedNode.value)
+      break
+    case 'close-database':
+      // 关闭数据库：从展开列表中移除
+      if (selectedNode.value) {
+        const index = expandedKeys.value.indexOf(selectedNode.value.key)
+        if (index > -1) {
+          expandedKeys.value.splice(index, 1)
+        }
+      }
       break
     case 'new-table':
       handleNewTable()
