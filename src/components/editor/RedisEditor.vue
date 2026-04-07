@@ -238,6 +238,7 @@ import {
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { invoke } from '@tauri-apps/api/core'
+import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager'
 import { useConnectionStore } from '@/stores/connection'
 import { useAppStore } from '@/stores/app'
 
@@ -634,6 +635,54 @@ function closeEditorMenu() {
   editorMenuVisible.value = false
 }
 
+// 剪切操作
+async function handleCut() {
+  if (!editor) return
+  const selection = editor.getSelection()
+  const model = editor.getModel()
+  if (!selection || !model || selection.isEmpty()) return
+
+  const text = model.getValueInRange(selection)
+  await writeText(text)
+  editor.executeEdits('cut', [{
+    range: selection,
+    text: '',
+  }])
+  editor.focus()
+}
+
+// 复制操作
+async function handleCopy() {
+  if (!editor) return
+  const selection = editor.getSelection()
+  const model = editor.getModel()
+  if (!selection || !model || selection.isEmpty()) return
+
+  const text = model.getValueInRange(selection)
+  await writeText(text)
+  editor.focus()
+}
+
+// 粘贴操作
+async function handlePaste() {
+  if (!editor) return
+  try {
+    const text = await readText()
+    if (text === null || text === undefined) return
+    
+    const selection = editor.getSelection()
+    if (!selection) return
+    
+    editor.executeEdits('paste', [{
+      range: selection,
+      text: text,
+    }])
+    editor.focus()
+  } catch (error) {
+    console.error('粘贴失败:', error)
+  }
+}
+
 // 处理编辑器右键菜单点击
 function handleEditorMenuClick({ key }: { key: string | number }) {
   closeEditorMenu()
@@ -644,13 +693,13 @@ function handleEditorMenuClick({ key }: { key: string | number }) {
       executeCommand()
       break
     case 'cut':
-      editor?.trigger('contextMenu', 'editor.action.clipboardCutAction', null)
+      handleCut()
       break
     case 'copy':
-      editor?.trigger('contextMenu', 'editor.action.clipboardCopyAction', null)
+      handleCopy()
       break
     case 'paste':
-      editor?.trigger('contextMenu', 'editor.action.clipboardPasteAction', null)
+      handlePaste()
       break
     case 'select-all':
       editor?.trigger('contextMenu', 'editor.action.selectAll', null)

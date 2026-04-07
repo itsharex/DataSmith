@@ -29,6 +29,7 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(AppState { connection_manager })
         .invoke_handler(tauri::generate_handler![
             commands::connection::test_connection,
