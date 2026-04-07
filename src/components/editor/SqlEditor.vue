@@ -492,7 +492,7 @@ onMounted(() => {
   editor = monaco.editor.create(editorContainer.value, {
     value: '-- 在此输入 SQL 查询\nSELECT * FROM users LIMIT 10;',
     language: 'sql',
-    theme: 'vs',
+    theme: appStore.theme === 'dark' ? 'vs-dark' : 'vs',
     automaticLayout: true,
     fontSize: 14,
     minimap: { enabled: false },

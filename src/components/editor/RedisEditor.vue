@@ -331,7 +331,7 @@ onMounted(() => {
   editor = monaco.editor.create(editorContainer.value, {
     value: '# 在此输入 Redis 命令\n# PING - 测试连接是否正常\n# INFO - 查看服务器信息\n# GET key - 获取键值\n# SET key value - 设置键值\n\nPING',
     language: 'shell',
-    theme: 'vs',
+    theme: appStore.theme === 'dark' ? 'vs-dark' : 'vs',
     automaticLayout: true,
     fontSize: 14,
     minimap: { enabled: false },
