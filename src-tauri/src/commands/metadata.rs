@@ -520,9 +520,9 @@ pub async fn get_table_indexes(
     let manager = state.connection_manager.lock().await;
     
     let sql = format!(
-        "SELECT DISTINCT INDEX_NAME as index_name, COLUMN_NAME as column_name, 
-                INDEX_TYPE as index_type, NON_UNIQUE as non_unique
-         FROM information_schema.STATISTICS 
+        "SELECT INDEX_NAME as index_name, COLUMN_NAME as column_name,
+                INDEX_TYPE as index_type, NON_UNIQUE as non_unique, SEQ_IN_INDEX
+         FROM information_schema.STATISTICS
          WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}'
          ORDER BY INDEX_NAME, SEQ_IN_INDEX",
         database.replace("'", "''"),

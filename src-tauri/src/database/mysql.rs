@@ -377,6 +377,27 @@ impl DatabaseOperations for MySqlDatabase {
                 .unwrap_or_else(|_| Vec::new());
             let extra = String::from_utf8_lossy(&extra_bytes).into_owned();
 
+            // 获取字符最大长度 - MySQL 返回的是 BIGINT UNSIGNED，使用 u64
+            let character_maximum_length: Option<i64> = row
+                .try_get::<Option<u64>, _>("CHARACTER_MAXIMUM_LENGTH")
+                .ok()
+                .flatten()
+                .map(|v| v as i64);
+            
+            // 获取数值精度
+            let numeric_precision: Option<i64> = row
+                .try_get::<Option<u64>, _>("NUMERIC_PRECISION")
+                .ok()
+                .flatten()
+                .map(|v| v as i64);
+            
+            // 获取数值小数位数
+            let numeric_scale: Option<i64> = row
+                .try_get::<Option<u64>, _>("NUMERIC_SCALE")
+                .ok()
+                .flatten()
+                .map(|v| v as i64);
+
             columns.push(ColumnInfo {
                 name,
                 data_type,
@@ -387,9 +408,9 @@ impl DatabaseOperations for MySqlDatabase {
                 is_auto_increment: extra.contains("auto_increment"),
                 comment: row.try_get::<Vec<u8>, _>("COLUMN_COMMENT").ok()
                     .map(|b| String::from_utf8_lossy(&b).into_owned()),
-                character_maximum_length: row.try_get("CHARACTER_MAXIMUM_LENGTH").ok(),
-                numeric_precision: row.try_get("NUMERIC_PRECISION").ok(),
-                numeric_scale: row.try_get("NUMERIC_SCALE").ok(),
+                character_maximum_length,
+                numeric_precision,
+                numeric_scale,
             });
         }
 
@@ -407,8 +428,8 @@ impl DatabaseOperations for MySqlDatabase {
         }).ok_or_else(|| DbError::ConfigError("未指定数据库".to_string()))?;
 
         let rows = sqlx::query(
-            "SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE, INDEX_TYPE
-             FROM information_schema.STATISTICS 
+            "SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE, INDEX_TYPE, SEQ_IN_INDEX
+             FROM information_schema.STATISTICS
              WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
              ORDER BY INDEX_NAME, SEQ_IN_INDEX"
         )

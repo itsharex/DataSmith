@@ -474,13 +474,28 @@ async function loadStructure() {
       database: props.database,
     })
     
-    tableColumns.value = columns.map(col => ({
-      ...col,
-      length: extractLength(col.data_type),
-      data_type: extractBaseType(col.data_type),
-      _modified: false,
-      _isNew: false,
-    }))
+    
+    tableColumns.value = columns.map(col => {
+      // 优先使用后端返回的长度/精度信息
+      let length: number | undefined = undefined
+      if (col.character_maximum_length) {
+        length = col.character_maximum_length
+      } else if (col.numeric_precision) {
+        // 对于数值类型，使用 numeric_precision
+        length = col.numeric_precision
+      } else {
+        // 最后尝试从 data_type 中解析
+        length = extractLength(col.data_type)
+      }
+      
+      return {
+        ...col,
+        length,
+        data_type: extractBaseType(col.data_type),
+        _modified: false,
+        _isNew: false,
+      }
+    })
     
     // 加载索引
     try {
